@@ -1,3 +1,4 @@
+
 <title>Libreta de Gastos</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%BE%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,7 +30,6 @@
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       color-scheme: dark;
-      --paper:        #16180f8b;
       --paper:        #171911;
       --paper-2:      #1f2117;
       --surface:      #1f2216;
@@ -113,10 +113,6 @@
     text-align:center; min-width:0; text-wrap:balance;
     text-transform:capitalize;
   }
-  .month-title button{
-    all:unset; cursor:pointer; border-bottom:1px dashed transparent;
-  }
-  .month-title button:hover{ border-color:var(--muted); }
 
   .sync-row{
     text-align:center; font-size:12px; color:var(--muted); min-height:16px;
@@ -126,8 +122,23 @@
   .sync-dot.saving{ background:var(--warn); }
   .sync-dot.err{ background:var(--danger); }
 
+  .tiles{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:18px 0 16px;
+  }
+  .tile{
+    background:var(--surface); border:1px solid var(--hairline);
+    border-radius:12px; padding:12px 10px; text-align:left;
+    border-left:3px solid var(--hairline-2);
+  }
+  .tile.t-income{ border-left-color:var(--good); }
+  .tile.t-expense{ border-left-color:var(--danger); }
+  .tile.t-balance{ border-left-color:var(--accent); }
+  .tile-label{ font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600; margin-bottom:4px; }
+  .tile-value{ font-size:17px; font-weight:600; }
+  .tile-value.negative{ color:var(--danger-ink); }
+
   .actions-row{
-    display:flex; gap:10px; margin:18px 0 20px;
+    display:flex; gap:10px; margin:0 0 16px;
   }
   .btn{
     font-family:inherit; font-size:14px; font-weight:600; cursor:pointer;
@@ -144,24 +155,23 @@
   .btn-text:hover{ text-decoration:underline; }
   .btn[disabled]{ opacity:.5; cursor:not-allowed; }
 
-  .tiles{
-    display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:22px;
+  .tabs{
+    display:flex; gap:4px; background:var(--surface); border:1px solid var(--hairline);
+    border-radius:12px; padding:4px; margin-bottom:18px;
   }
-  .tile{
-    background:var(--surface); border:1px solid var(--hairline);
-    border-radius:12px; padding:12px 10px; text-align:left;
-    border-left:3px solid var(--hairline-2);
+  .tab-btn{
+    flex:1; border:none; background:transparent; font-family:inherit; font-size:13.5px;
+    font-weight:600; color:var(--ink-soft); padding:10px 10px; border-radius:9px;
+    cursor:pointer; transition: background .15s ease, color .15s ease;
   }
-  .tile.t-total{ border-left-color:var(--accent); }
-  .tile.t-paid{ border-left-color:var(--good); }
-  .tile.t-pending{ border-left-color:var(--warn); }
-  .tile-label{ font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600; margin-bottom:4px; }
-  .tile-value{ font-size:17px; font-weight:600; }
+  .tab-btn.active{ background:var(--accent); color:var(--accent-ink); }
+  .tab-btn:hover:not(.active){ background:var(--accent-soft); }
 
   .section-label{
     font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--muted);
-    font-weight:600; margin:0 0 8px 2px; display:flex; justify-content:space-between;
+    font-weight:600; margin:0 0 4px 2px; display:flex; justify-content:space-between;
   }
+  .stat-line{ font-size:12.5px; color:var(--ink-soft); margin:0 0 10px 2px; }
 
   .ledger{
     background:var(--surface); border:1px solid var(--hairline); border-radius:14px;
@@ -261,8 +271,6 @@
   .confirm-body{ font-size:14px; color:var(--ink-soft); line-height:1.5; margin-bottom:18px; }
   .confirm-body b{ color:var(--ink); }
 
-  .visually-hidden{ position:absolute; width:1px;height:1px; overflow:hidden; clip:rect(0 0 0 0); }
-
   ::selection{ background:var(--accent-soft); }
 
   @media (prefers-reduced-motion: reduce){
@@ -281,23 +289,29 @@
     <div class="sync-row" id="syncRow"><span class="sync-dot" id="syncDot"></span><span id="syncText">Cargando…</span></div>
   </header>
 
+  <div class="tiles">
+    <div class="tile t-income"><div class="tile-label">Ingresos</div><div class="tile-value num" id="tileIngresos">$0</div></div>
+    <div class="tile t-expense"><div class="tile-label">Gastos</div><div class="tile-value num" id="tileGastos">$0</div></div>
+    <div class="tile t-balance"><div class="tile-label">Saldo</div><div class="tile-value num" id="tileSaldo">$0</div></div>
+  </div>
+
   <div class="actions-row">
     <button class="btn btn-outline" id="copyBtn">⧉ Copiar mes anterior</button>
-    <button class="btn btn-primary" id="addBtn">+ Agregar gasto</button>
+    <button class="btn btn-primary" id="addBtn">+ Agregar</button>
   </div>
 
-  <div class="tiles">
-    <div class="tile t-total"><div class="tile-label">Total</div><div class="tile-value num" id="tileTotal">$0</div></div>
-    <div class="tile t-paid"><div class="tile-label">Pagado</div><div class="tile-value num" id="tilePaid">$0</div></div>
-    <div class="tile t-pending"><div class="tile-label">Pendiente</div><div class="tile-value num" id="tilePending">$0</div></div>
+  <div class="tabs" id="tabSwitch">
+    <button class="tab-btn active" type="button" data-tab="gastos">Gastos</button>
+    <button class="tab-btn" type="button" data-tab="ingresos">Ingresos</button>
   </div>
 
-  <p class="section-label"><span>Gastos del mes</span><span id="itemCount"></span></p>
+  <p class="section-label"><span id="sectionTitle">Gastos del mes</span><span id="itemCount"></span></p>
+  <p class="stat-line" id="statLine"></p>
 
   <div id="listArea"></div>
 </div>
 
-<button class="fab" id="fabAdd" aria-label="Agregar gasto">+</button>
+<button class="fab" id="fabAdd" aria-label="Agregar">+</button>
 
 <div class="overlay" id="editOverlay">
   <form class="sheet" id="editForm">
@@ -316,19 +330,19 @@
         <div class="amount-field"><span>$</span><input type="number" id="f-monto" min="0" step="1" inputmode="decimal" placeholder="0" required></div>
       </div>
       <div class="field">
-        <label for="f-vencimiento">Vence el día</label>
+        <label for="f-vencimiento" id="fVencimientoLabel">Vence el día</label>
         <input type="number" id="f-vencimiento" min="1" max="31" placeholder="Opcional">
       </div>
     </div>
     <div class="field toggle-row">
-      <span>Ya lo pagué</span>
+      <span id="fPagadoLabel">Ya lo pagué</span>
       <label class="switch"><input type="checkbox" id="f-pagado"><span class="track"><span class="thumb"></span></span></label>
     </div>
     <div class="sheet-actions">
       <button type="button" class="btn btn-outline" id="cancelBtn">Cancelar</button>
       <button type="submit" class="btn btn-primary">Guardar</button>
     </div>
-    <button type="button" class="btn btn-text" id="deleteBtn" style="width:100%; margin-top:8px; display:none;">Eliminar gasto</button>
+    <button type="button" class="btn btn-text" id="deleteBtn" style="width:100%; margin-top:8px; display:none;">Eliminar</button>
   </form>
 </div>
 
@@ -344,7 +358,7 @@
 (function(){
   "use strict";
 
-  var CATEGORIES = [
+  var EXPENSE_CATEGORIES = [
     {id:"servicios",   label:"Servicios",    varName:"--cat-1"},
     {id:"vivienda",    label:"Vivienda",     varName:"--cat-2"},
     {id:"super",       label:"Supermercado", varName:"--cat-3"},
@@ -354,9 +368,39 @@
     {id:"ocio",        label:"Ocio",         varName:"--cat-7"},
     {id:"otros",       label:"Otros",        varName:"--cat-8"}
   ];
-  function catById(id){
-    for (var i=0;i<CATEGORIES.length;i++){ if (CATEGORIES[i].id===id) return CATEGORIES[i]; }
-    return CATEGORIES[CATEGORIES.length-1];
+  var INCOME_CATEGORIES = [
+    {id:"sueldo",     label:"Sueldo",     varName:"--cat-1"},
+    {id:"freelance",  label:"Freelance",  varName:"--cat-2"},
+    {id:"alquiler",   label:"Alquiler",   varName:"--cat-3"},
+    {id:"reintegro",  label:"Reintegro",  varName:"--cat-4"},
+    {id:"otros",      label:"Otros",      varName:"--cat-5"}
+  ];
+
+  var MODES = {
+    gastos: {
+      key:"gastos", singular:"gasto", plural:"gastos",
+      categories: EXPENSE_CATEGORIES,
+      dueLabel:"Vence el día", doneLabel:"Ya lo pagué",
+      doneWord:"Pagado", pendingWord:"Pendiente", overdueWord:"Atrasado",
+      addBtn:"+ Agregar gasto", newTitle:"Nuevo gasto", editTitle:"Editar gasto",
+      deleteLabel:"Eliminar gasto", sectionLabel:"Gastos del mes",
+      emptyText:"Todavía no cargaste gastos para", emptyAdd:"+ Agregar gasto"
+    },
+    ingresos: {
+      key:"ingresos", singular:"ingreso", plural:"ingresos",
+      categories: INCOME_CATEGORIES,
+      dueLabel:"Cobra el día", doneLabel:"Ya lo cobré",
+      doneWord:"Cobrado", pendingWord:"Pendiente", overdueWord:"Atrasado",
+      addBtn:"+ Agregar ingreso", newTitle:"Nuevo ingreso", editTitle:"Editar ingreso",
+      deleteLabel:"Eliminar ingreso", sectionLabel:"Ingresos del mes",
+      emptyText:"Todavía no cargaste ingresos para", emptyAdd:"+ Agregar ingreso"
+    }
+  };
+
+  function catById(mode, id){
+    var list = mode.categories;
+    for (var i=0;i<list.length;i++){ if (list[i].id===id) return list[i]; }
+    return list[list.length-1];
   }
 
   var MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
@@ -399,16 +443,24 @@
     if (extra) for (var k in extra) h[k] = extra[k];
     return h;
   }
+  // select=* so this keeps working whether the row still has the legacy
+  // "items" column or the current "gastos"/"ingresos" columns.
   function fetchMonthRow(id){
-    return fetch(SUPABASE_URL + "/rest/v1/" + TABLE + "?id=eq." + encodeURIComponent(id) + "&select=id,items,updated_at", { headers: sbHeaders() })
+    return fetch(SUPABASE_URL + "/rest/v1/" + TABLE + "?id=eq." + encodeURIComponent(id) + "&select=*", { headers: sbHeaders() })
       .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function(rows){ return rows && rows[0] ? rows[0] : null; });
+      .then(function(rows){
+        var row = rows && rows[0] ? rows[0] : null;
+        if (!row) return { gastos: [], ingresos: [] };
+        var gastos = Array.isArray(row.gastos) ? row.gastos : (Array.isArray(row.items) ? row.items : []);
+        var ingresos = Array.isArray(row.ingresos) ? row.ingresos : [];
+        return { gastos: gastos, ingresos: ingresos };
+      });
   }
-  function upsertMonthRow(id, items){
+  function upsertMonthRow(id, gastos, ingresos){
     return fetch(SUPABASE_URL + "/rest/v1/" + TABLE, {
       method: "POST",
       headers: sbHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
-      body: JSON.stringify([{ id: id, items: items, updated_at: new Date().toISOString() }])
+      body: JSON.stringify([{ id: id, gastos: gastos, ingresos: ingresos, updated_at: new Date().toISOString() }])
     }).then(function(r){
       if (!r.ok) return r.text().then(function(t){ throw new Error("HTTP " + r.status + ": " + t); });
     });
@@ -417,11 +469,17 @@
   var today = todayParts();
   var state = {
     y: today.y, m: today.m,
-    items: [],
+    gastos: [], ingresos: [],
     loaded: false,
+    activeTab: "gastos",
     editingId: null,
+    editingTab: "gastos",
     pollTimer: null
   };
+
+  function activeMode(){ return MODES[state.activeTab]; }
+  function activeItems(){ return state[state.activeTab]; }
+  function setActiveItems(items){ state[state.activeTab] = items; }
 
   // ---------- DOM refs ----------
   var el = {
@@ -434,9 +492,12 @@
     copyBtn: document.getElementById("copyBtn"),
     addBtn: document.getElementById("addBtn"),
     fabAdd: document.getElementById("fabAdd"),
-    tileTotal: document.getElementById("tileTotal"),
-    tilePaid: document.getElementById("tilePaid"),
-    tilePending: document.getElementById("tilePending"),
+    tileIngresos: document.getElementById("tileIngresos"),
+    tileGastos: document.getElementById("tileGastos"),
+    tileSaldo: document.getElementById("tileSaldo"),
+    tabSwitch: document.getElementById("tabSwitch"),
+    sectionTitle: document.getElementById("sectionTitle"),
+    statLine: document.getElementById("statLine"),
     itemCount: document.getElementById("itemCount"),
     listArea: document.getElementById("listArea"),
     editOverlay: document.getElementById("editOverlay"),
@@ -446,7 +507,9 @@
     fConcepto: document.getElementById("f-concepto"),
     fMonto: document.getElementById("f-monto"),
     fVencimiento: document.getElementById("f-vencimiento"),
+    fVencimientoLabel: document.getElementById("fVencimientoLabel"),
     fPagado: document.getElementById("f-pagado"),
+    fPagadoLabel: document.getElementById("fPagadoLabel"),
     cancelBtn: document.getElementById("cancelBtn"),
     deleteBtn: document.getElementById("deleteBtn"),
     confirmOverlay: document.getElementById("confirmOverlay"),
@@ -455,20 +518,36 @@
     confirmActions: document.getElementById("confirmActions")
   };
 
-  var selectedCat = CATEGORIES[0].id;
+  var selectedCat = EXPENSE_CATEGORIES[0].id;
 
-  // ---------- render: chips (built once) ----------
-  CATEGORIES.forEach(function(c){
-    var chip = document.createElement("div");
-    chip.className = "chip";
-    chip.dataset.cat = c.id;
-    chip.innerHTML = '<span class="cat-dot" style="background:var('+c.varName+')"></span>' + c.label;
-    chip.addEventListener("click", function(){
-      selectedCat = c.id;
-      renderChipsActive();
+  // ---------- tabs ----------
+  Array.prototype.forEach.call(el.tabSwitch.children, function(btn){
+    btn.addEventListener("click", function(){
+      var tab = btn.dataset.tab;
+      if (tab === state.activeTab) return;
+      state.activeTab = tab;
+      Array.prototype.forEach.call(el.tabSwitch.children, function(b){
+        b.classList.toggle("active", b.dataset.tab === tab);
+      });
+      renderList();
     });
-    el.catChips.appendChild(chip);
   });
+
+  // ---------- chips (rebuilt per mode) ----------
+  function renderChips(mode){
+    el.catChips.innerHTML = "";
+    mode.categories.forEach(function(c){
+      var chip = document.createElement("div");
+      chip.className = "chip";
+      chip.dataset.cat = c.id;
+      chip.innerHTML = '<span class="cat-dot" style="background:var('+c.varName+')"></span>' + c.label;
+      chip.addEventListener("click", function(){
+        selectedCat = c.id;
+        renderChipsActive();
+      });
+      el.catChips.appendChild(chip);
+    });
+  }
   function renderChipsActive(){
     Array.prototype.forEach.call(el.catChips.children, function(chip){
       chip.classList.toggle("active", chip.dataset.cat === selectedCat);
@@ -482,7 +561,7 @@
   function goToMonth(y,m){
     state.y = y; state.m = m;
     state.loaded = false;
-    state.items = [];
+    state.gastos = []; state.ingresos = [];
     renderMonthHeader();
     renderList();
     loadMonth();
@@ -505,23 +584,37 @@
     el.syncText.textContent = text;
   }
 
-  // ---------- totals ----------
-  function renderTotals(){
-    var total=0, paid=0, pending=0;
-    state.items.forEach(function(it){
+  // ---------- summary (always visible, both tabs combined) ----------
+  function sumMonto(list){
+    return list.reduce(function(acc,it){ return acc + (Number(it.monto)||0); }, 0);
+  }
+  function renderSummary(){
+    var totalIngresos = sumMonto(state.ingresos);
+    var totalGastos = sumMonto(state.gastos);
+    var saldo = totalIngresos - totalGastos;
+    el.tileIngresos.textContent = fmtMoney(totalIngresos);
+    el.tileGastos.textContent = fmtMoney(totalGastos);
+    el.tileSaldo.textContent = fmtMoney(saldo);
+    el.tileSaldo.classList.toggle("negative", saldo < 0);
+  }
+
+  // ---------- per-tab stat line ----------
+  function renderStatLine(){
+    var mode = activeMode();
+    var items = activeItems();
+    var done = 0, pending = 0;
+    items.forEach(function(it){
       var amt = Number(it.monto)||0;
-      total += amt;
-      if (it.pagado) paid += amt; else pending += amt;
+      if (it.pagado) done += amt; else pending += amt;
     });
-    el.tileTotal.textContent = fmtMoney(total);
-    el.tilePaid.textContent = fmtMoney(paid);
-    el.tilePending.textContent = fmtMoney(pending);
-    el.itemCount.textContent = state.items.length ? (state.items.length + (state.items.length===1?" gasto":" gastos")) : "";
+    el.sectionTitle.textContent = mode.sectionLabel;
+    el.itemCount.textContent = items.length ? (items.length + " " + (items.length===1?mode.singular:mode.plural)) : "";
+    el.statLine.textContent = items.length ? (mode.doneWord + " " + fmtMoney(done) + " · " + mode.pendingWord + " " + fmtMoney(pending)) : "";
   }
 
   // ---------- list ----------
-  function sortedItems(){
-    return state.items.slice().sort(function(a,b){
+  function sortedItems(items){
+    return items.slice().sort(function(a,b){
       var av = a.vencimiento==null ? 999 : a.vencimiento;
       var bv = b.vencimiento==null ? 999 : b.vencimiento;
       if (av!==bv) return av-bv;
@@ -534,12 +627,16 @@
   }
 
   function renderList(){
+    var mode = activeMode();
+    var items = activeItems();
+    renderSummary();
+    renderStatLine();
+
     if (!state.loaded){
       el.listArea.innerHTML = '<div class="empty"><p>Cargando…</p></div>';
-      renderTotals();
       return;
     }
-    if (state.items.length === 0){
+    if (items.length === 0){
       el.listArea.innerHTML =
         '<div class="empty">' +
         '<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">' +
@@ -548,26 +645,25 @@
         '<line x1="13" y1="20" x2="27" y2="20" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round"/>' +
         '<line x1="13" y1="26" x2="21" y2="26" stroke="var(--ink-soft)" stroke-width="2" stroke-linecap="round"/>' +
         '</svg>' +
-        '<p>Todavía no cargaste gastos para ' + monthLabel(state.y,state.m) + '.</p>' +
+        '<p>' + mode.emptyText + ' ' + monthLabel(state.y,state.m) + '.</p>' +
         '<button class="btn btn-outline" id="emptyCopyBtn" style="margin-right:8px;">Copiar mes anterior</button>' +
-        '<button class="btn btn-primary" id="emptyAddBtn">+ Agregar gasto</button>' +
+        '<button class="btn btn-primary" id="emptyAddBtn">' + mode.emptyAdd + '</button>' +
         '</div>';
       document.getElementById("emptyCopyBtn").addEventListener("click", onCopyClick);
       document.getElementById("emptyAddBtn").addEventListener("click", function(){ openEdit(null); });
-      renderTotals();
       return;
     }
     var wrap = document.createElement("div");
     wrap.className = "ledger";
-    sortedItems().forEach(function(it){
-      var cat = catById(it.categoria);
+    sortedItems(items).forEach(function(it){
+      var cat = catById(mode, it.categoria);
       var overdue = isOverdue(it);
       var row = document.createElement("div");
       row.className = "row" + (overdue?" overdue":"");
       row.dataset.id = it.id;
 
       var sub = [cat.label];
-      if (it.vencimiento!=null) sub.push("vence día " + it.vencimiento);
+      if (it.vencimiento!=null) sub.push((mode.key==="gastos" ? "vence día " : "cobra día ") + it.vencimiento);
 
       var top = document.createElement("div");
       top.className = "row-top";
@@ -594,11 +690,11 @@
 
       var pill = document.createElement("span");
       pill.className = "status-pill " + (it.pagado ? "paid" : (overdue ? "overdue" : "pending"));
-      pill.textContent = it.pagado ? "✓ Pagado" : (overdue ? "⚠ Atrasado" : "⏳ Pendiente");
-      pill.title = "Tocar para marcar " + (it.pagado ? "pendiente" : "pagado");
+      pill.textContent = it.pagado ? ("✓ " + mode.doneWord) : (overdue ? ("⚠ " + mode.overdueWord) : ("⏳ " + mode.pendingWord));
+      pill.title = "Tocar para marcar " + (it.pagado ? mode.pendingWord.toLowerCase() : mode.doneWord.toLowerCase());
       pill.addEventListener("click", function(ev){
         ev.stopPropagation();
-        togglePagado(it.id);
+        toggleDone(it.id);
       });
 
       bottom.appendChild(catWrap);
@@ -612,14 +708,15 @@
     });
     el.listArea.innerHTML = "";
     el.listArea.appendChild(wrap);
-    renderTotals();
   }
 
   // ---------- persistence (Supabase) ----------
-  function persist(items, cb){
+  function persist(cb){
     var idAtCall = currentMonthId();
+    var gastosSnapshot = state.gastos;
+    var ingresosSnapshot = state.ingresos;
     setSync("saving", "Guardando…");
-    upsertMonthRow(idAtCall, items)
+    upsertMonthRow(idAtCall, gastosSnapshot, ingresosSnapshot)
       .then(function(){
         if (idAtCall !== currentMonthId()) return;
         setSync("ok", "Sincronizado");
@@ -634,9 +731,10 @@
   function loadMonth(silent){
     var idAtCall = currentMonthId();
     if (!silent) setSync("saving", "Cargando…");
-    return fetchMonthRow(idAtCall).then(function(row){
+    return fetchMonthRow(idAtCall).then(function(data){
       if (idAtCall !== currentMonthId()) return; // user moved to another month meanwhile
-      state.items = (row && Array.isArray(row.items)) ? row.items : [];
+      state.gastos = data.gastos;
+      state.ingresos = data.ingresos;
       state.loaded = true;
       setSync("ok", "Sincronizado");
       renderList();
@@ -663,24 +761,31 @@
 
   // ---------- edit sheet ----------
   function openEdit(id){
+    var mode = activeMode();
+    state.editingTab = state.activeTab;
     state.editingId = id;
+    renderChips(mode);
+    el.fVencimientoLabel.textContent = mode.dueLabel;
+    el.fPagadoLabel.textContent = mode.doneLabel;
+    el.deleteBtn.textContent = mode.deleteLabel;
+
     if (id){
-      var it = state.items.filter(function(x){return x.id===id;})[0];
+      var it = activeItems().filter(function(x){return x.id===id;})[0];
       if (!it) return;
-      el.editTitle.textContent = "Editar gasto";
+      el.editTitle.textContent = mode.editTitle;
       el.fConcepto.value = it.concepto || "";
       el.fMonto.value = it.monto != null ? it.monto : "";
       el.fVencimiento.value = it.vencimiento != null ? it.vencimiento : "";
       el.fPagado.checked = !!it.pagado;
-      selectedCat = it.categoria || CATEGORIES[0].id;
+      selectedCat = it.categoria || mode.categories[0].id;
       el.deleteBtn.style.display = "block";
     } else {
-      el.editTitle.textContent = "Nuevo gasto";
+      el.editTitle.textContent = mode.newTitle;
       el.fConcepto.value = "";
       el.fMonto.value = "";
       el.fVencimiento.value = "";
       el.fPagado.checked = false;
-      selectedCat = CATEGORIES[0].id;
+      selectedCat = mode.categories[0].id;
       el.deleteBtn.style.display = "none";
     }
     renderChipsActive();
@@ -704,7 +809,7 @@
     var venc = el.fVencimiento.value ? Math.max(1, Math.min(31, parseInt(el.fVencimiento.value,10))) : null;
     var pagado = el.fPagado.checked;
 
-    var items = state.items.slice();
+    var items = state[state.editingTab].slice();
     if (state.editingId){
       items = items.map(function(it){
         if (it.id !== state.editingId) return it;
@@ -713,28 +818,28 @@
     } else {
       items.push({ id:uid(), concepto:concepto, categoria:selectedCat, monto:monto, vencimiento:venc, pagado:pagado });
     }
-    state.items = items;
+    state[state.editingTab] = items;
     renderList();
     closeEdit();
-    persist(items);
+    persist();
   });
 
   el.deleteBtn.addEventListener("click", function(){
     if (!state.editingId) return;
-    var items = state.items.filter(function(it){ return it.id !== state.editingId; });
-    state.items = items;
+    var items = state[state.editingTab].filter(function(it){ return it.id !== state.editingId; });
+    state[state.editingTab] = items;
     renderList();
     closeEdit();
-    persist(items);
+    persist();
   });
 
-  function togglePagado(id){
-    var items = state.items.map(function(it){
+  function toggleDone(id){
+    var items = activeItems().map(function(it){
       return it.id===id ? Object.assign({}, it, {pagado: !it.pagado}) : it;
     });
-    state.items = items;
+    setActiveItems(items);
     renderList();
-    persist(items);
+    persist();
   }
 
   // ---------- copy previous month ----------
@@ -756,45 +861,61 @@
     el.confirmOverlay.classList.add("show");
   }
 
+  function countLabel(n, singular, plural){
+    return n + " " + (n===1 ? singular : plural);
+  }
+
   function onCopyClick(){
     var prev = shiftMonth(state.y, state.m, -1);
     var prevId = monthId(prev.y, prev.m);
     var prevLabel = monthLabel(prev.y, prev.m);
-    fetchMonthRow(prevId).then(function(row){
-      var prevItems = (row && Array.isArray(row.items)) ? row.items : [];
-      if (prevItems.length === 0){
+    fetchMonthRow(prevId).then(function(data){
+      var prevGastos = data.gastos, prevIngresos = data.ingresos;
+      if (prevGastos.length === 0 && prevIngresos.length === 0){
         showConfirm("Copiar mes anterior",
-          "No hay gastos cargados en <b>" + prevLabel + "</b> para copiar.",
+          "No hay nada cargado en <b>" + prevLabel + "</b> para copiar.",
           [{label:"Cerrar", style:"btn-primary", onClick:function(){}}]);
         return;
       }
-      function freshCopy(){
-        return prevItems.map(function(it){
+      function freshCopy(list){
+        return list.map(function(it){
           return { id:uid(), concepto:it.concepto, categoria:it.categoria, monto:it.monto, vencimiento:it.vencimiento, pagado:false };
         });
       }
-      if (state.items.length === 0){
+      var parts = [];
+      if (prevGastos.length) parts.push(countLabel(prevGastos.length, "gasto", "gastos"));
+      if (prevIngresos.length) parts.push(countLabel(prevIngresos.length, "ingreso", "ingresos"));
+      var prevCounts = parts.join(" y ");
+
+      var hasCurrent = state.gastos.length > 0 || state.ingresos.length > 0;
+      if (!hasCurrent){
         showConfirm("Copiar mes anterior",
-          "Vas a copiar <b>" + prevItems.length + "</b> gasto" + (prevItems.length===1?"":"s") + " de <b>" + prevLabel + "</b>. Los montos y vencimientos quedan iguales; el estado vuelve a pendiente para que los marques de nuevo.",
+          "Vas a copiar " + prevCounts + " de <b>" + prevLabel + "</b>. Los montos y fechas quedan iguales; el estado vuelve a pendiente para que los marques de nuevo.",
           [
             {label:"Cancelar", style:"btn-outline", onClick:function(){}},
             {label:"Copiar", style:"btn-primary", onClick:function(){
-              var items = freshCopy();
-              state.items = items; renderList(); persist(items);
+              state.gastos = freshCopy(prevGastos);
+              state.ingresos = freshCopy(prevIngresos);
+              renderList(); persist();
             }}
           ]);
       } else {
+        var currentParts = [];
+        if (state.gastos.length) currentParts.push(countLabel(state.gastos.length, "gasto", "gastos"));
+        if (state.ingresos.length) currentParts.push(countLabel(state.ingresos.length, "ingreso", "ingresos"));
         showConfirm("Copiar mes anterior",
-          "Ya tenés <b>" + state.items.length + "</b> gasto" + (state.items.length===1?"":"s") + " cargado" + (state.items.length===1?"":"s") + " en " + monthLabel(state.y,state.m) + ". " + prevItems.length + " gasto" + (prevItems.length===1?"":"s") + " en " + prevLabel + " para copiar. ¿Qué querés hacer?",
+          "En " + monthLabel(state.y,state.m) + " ya tenés cargado: " + currentParts.join(" y ") + ". En <b>" + prevLabel + "</b> hay " + prevCounts + " para copiar. ¿Qué querés hacer?",
           [
             {label:"Cancelar", style:"btn-outline", onClick:function(){}},
             {label:"Agregar", style:"btn-outline", onClick:function(){
-              var items = state.items.concat(freshCopy());
-              state.items = items; renderList(); persist(items);
+              state.gastos = state.gastos.concat(freshCopy(prevGastos));
+              state.ingresos = state.ingresos.concat(freshCopy(prevIngresos));
+              renderList(); persist();
             }},
             {label:"Reemplazar todo", style:"btn-primary", onClick:function(){
-              var items = freshCopy();
-              state.items = items; renderList(); persist(items);
+              state.gastos = freshCopy(prevGastos);
+              state.ingresos = freshCopy(prevIngresos);
+              renderList(); persist();
             }}
           ]);
       }
@@ -806,6 +927,7 @@
 
   // ---------- boot ----------
   renderMonthHeader();
+  renderChips(activeMode());
   renderList();
   loadMonth();
   startPolling();
