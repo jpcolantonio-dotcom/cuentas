@@ -711,21 +711,42 @@
   }
 
   // ---------- persistence (Supabase) ----------
-  function persist(cb){
+  // Every write re-fetches the row right before saving and re-applies the
+  // same change to that fresh copy. Two devices can have this page open at
+  // once; without this, whichever device saves last with its own
+  // (possibly stale) local list would silently wipe out what the other
+  // device had just added.
+  function identity(x){ return x; }
+
+  function persistBoth(mutateGastos, mutateIngresos, cb){
+    // optimistic local update for instant feedback
+    state.gastos = mutateGastos(state.gastos);
+    state.ingresos = mutateIngresos(state.ingresos);
+    renderList();
+
     var idAtCall = currentMonthId();
-    var gastosSnapshot = state.gastos;
-    var ingresosSnapshot = state.ingresos;
     setSync("saving", "Guardando…");
-    upsertMonthRow(idAtCall, gastosSnapshot, ingresosSnapshot)
-      .then(function(){
+    fetchMonthRow(idAtCall).then(function(fresh){
+      if (idAtCall !== currentMonthId()) return; // navigated away meanwhile
+      var newGastos = mutateGastos(fresh.gastos);
+      var newIngresos = mutateIngresos(fresh.ingresos);
+      return upsertMonthRow(idAtCall, newGastos, newIngresos).then(function(){
         if (idAtCall !== currentMonthId()) return;
+        state.gastos = newGastos;
+        state.ingresos = newIngresos;
         setSync("ok", "Sincronizado");
+        renderList();
         if (cb) cb(null);
-      })
-      .catch(function(e){
-        if (idAtCall === currentMonthId()) setSync("err", "No se pudo guardar. Probá de nuevo.");
-        if (cb) cb(e);
       });
+    }).catch(function(e){
+      if (idAtCall === currentMonthId()) setSync("err", "No se pudo guardar. Probá de nuevo.");
+      if (cb) cb(e);
+    });
+  }
+
+  function persistMutation(tab, mutateFn, cb){
+    if (tab === "gastos") persistBoth(mutateFn, identity, cb);
+    else persistBoth(identity, mutateFn, cb);
   }
 
   function loadMonth(silent){
@@ -808,38 +829,38 @@
     if (!concepto || isNaN(monto)) return;
     var venc = el.fVencimiento.value ? Math.max(1, Math.min(31, parseInt(el.fVencimiento.value,10))) : null;
     var pagado = el.fPagado.checked;
+    var tab = state.editingTab;
+    var editingIdSnapshot = state.editingId;
+    var newId = uid();
 
-    var items = state[state.editingTab].slice();
-    if (state.editingId){
-      items = items.map(function(it){
-        if (it.id !== state.editingId) return it;
-        return Object.assign({}, it, { concepto:concepto, categoria:selectedCat, monto:monto, vencimiento:venc, pagado:pagado });
-      });
-    } else {
-      items.push({ id:uid(), concepto:concepto, categoria:selectedCat, monto:monto, vencimiento:venc, pagado:pagado });
-    }
-    state[state.editingTab] = items;
-    renderList();
     closeEdit();
-    persist();
+    persistMutation(tab, function(items){
+      if (editingIdSnapshot){
+        return items.map(function(it){
+          if (it.id !== editingIdSnapshot) return it;
+          return Object.assign({}, it, { concepto:concepto, categoria:selectedCat, monto:monto, vencimiento:venc, pagado:pagado });
+        });
+      }
+      return items.concat([{ id:newId, concepto:concepto, categoria:selectedCat, monto:monto, vencimiento:venc, pagado:pagado }]);
+    });
   });
 
   el.deleteBtn.addEventListener("click", function(){
     if (!state.editingId) return;
-    var items = state[state.editingTab].filter(function(it){ return it.id !== state.editingId; });
-    state[state.editingTab] = items;
-    renderList();
+    var tab = state.editingTab;
+    var idToDelete = state.editingId;
     closeEdit();
-    persist();
+    persistMutation(tab, function(items){
+      return items.filter(function(it){ return it.id !== idToDelete; });
+    });
   });
 
   function toggleDone(id){
-    var items = activeItems().map(function(it){
-      return it.id===id ? Object.assign({}, it, {pagado: !it.pagado}) : it;
+    persistMutation(state.activeTab, function(items){
+      return items.map(function(it){
+        return it.id===id ? Object.assign({}, it, {pagado: !it.pagado}) : it;
+      });
     });
-    setActiveItems(items);
-    renderList();
-    persist();
   }
 
   // ---------- copy previous month ----------
@@ -882,6 +903,11 @@
           return { id:uid(), concepto:it.concepto, categoria:it.categoria, monto:it.monto, vencimiento:it.vencimiento, pagado:false };
         });
       }
+      // generated once so the optimistic update and the merge-write below
+      // apply the exact same items (not freshly re-uid()'d each time)
+      var gastosCopy = freshCopy(prevGastos);
+      var ingresosCopy = freshCopy(prevIngresos);
+
       var parts = [];
       if (prevGastos.length) parts.push(countLabel(prevGastos.length, "gasto", "gastos"));
       if (prevIngresos.length) parts.push(countLabel(prevIngresos.length, "ingreso", "ingresos"));
@@ -894,9 +920,7 @@
           [
             {label:"Cancelar", style:"btn-outline", onClick:function(){}},
             {label:"Copiar", style:"btn-primary", onClick:function(){
-              state.gastos = freshCopy(prevGastos);
-              state.ingresos = freshCopy(prevIngresos);
-              renderList(); persist();
+              persistBoth(function(){ return gastosCopy; }, function(){ return ingresosCopy; });
             }}
           ]);
       } else {
@@ -908,14 +932,10 @@
           [
             {label:"Cancelar", style:"btn-outline", onClick:function(){}},
             {label:"Agregar", style:"btn-outline", onClick:function(){
-              state.gastos = state.gastos.concat(freshCopy(prevGastos));
-              state.ingresos = state.ingresos.concat(freshCopy(prevIngresos));
-              renderList(); persist();
+              persistBoth(function(items){ return items.concat(gastosCopy); }, function(items){ return items.concat(ingresosCopy); });
             }},
             {label:"Reemplazar todo", style:"btn-primary", onClick:function(){
-              state.gastos = freshCopy(prevGastos);
-              state.ingresos = freshCopy(prevIngresos);
-              renderList(); persist();
+              persistBoth(function(){ return gastosCopy; }, function(){ return ingresosCopy; });
             }}
           ]);
       }
