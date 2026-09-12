@@ -1,4 +1,4 @@
-
+  
 <title>Libreta de Gastos</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%BE%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -92,6 +92,9 @@
   .eyebrow{
     font-size:11px; letter-spacing:.14em; text-transform:uppercase;
     color:var(--muted); font-weight:600; margin:0 0 6px;
+  }
+  .version-tag{
+    text-align:center; font-size:11px; color:var(--muted); margin:28px 0 0;
   }
 
   header.top{ margin-bottom:18px; }
@@ -309,6 +312,8 @@
   <p class="stat-line" id="statLine"></p>
 
   <div id="listArea"></div>
+
+  <p class="version-tag" id="versionTag"></p>
 </div>
 
 <button class="fab" id="fabAdd" aria-label="Agregar">+</button>
@@ -432,6 +437,11 @@
     return "id-" + Date.now() + "-" + Math.random().toString(16).slice(2);
   }
 
+  // Bump this string on every change you deploy — it's shown at the bottom
+  // of the page so you can tell at a glance whether a device is actually
+  // running the latest version or an old cached copy.
+  var APP_VERSION = "1.3.0 (2026-09-12)";
+
   // ---------- Supabase config ----------
   var SUPABASE_URL = "https://ibmxclzjqqyhprmbvyqc.supabase.co";
   var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlibXhjbHpqcXF5aHBybWJ2eXFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxMDA0MzcsImV4cCI6MjEwNDY3NjQzN30.V-lAORkX9mHB8CHLPipO2TFf_NfX0yeB2IeWVBpCa2E";
@@ -515,8 +525,10 @@
     confirmOverlay: document.getElementById("confirmOverlay"),
     confirmTitle: document.getElementById("confirmTitle"),
     confirmBody: document.getElementById("confirmBody"),
-    confirmActions: document.getElementById("confirmActions")
+    confirmActions: document.getElementById("confirmActions"),
+    versionTag: document.getElementById("versionTag")
   };
+  el.versionTag.textContent = "Libreta de Gastos · v" + APP_VERSION;
 
   var selectedCat = EXPENSE_CATEGORIES[0].id;
 
