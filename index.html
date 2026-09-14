@@ -1,6 +1,20 @@
-
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Libreta de Gastos</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%BE%3C/text%3E%3C/svg%3E">
+
+<!-- PWA: permite instalarla ("Agregar a pantalla de inicio") en vez de solo abrirla como página -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#234d3e">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Libreta">
+<meta name="mobile-web-app-capable" content="yes">
+
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <style>
@@ -308,6 +322,8 @@
     *{ transition:none !important; animation:none !important; }
   }
 </style>
+</head>
+<body>
 
 <div class="page" id="app">
   <header class="top">
@@ -499,7 +515,7 @@
   // Bump this string on every change you deploy — it's shown at the bottom
   // of the page so you can tell at a glance whether a device is actually
   // running the latest version or an old cached copy.
-  var APP_VERSION = "1.4.0 (2026-09-12)";
+  var APP_VERSION = "1.5.0 (2026-09-12)";
 
   // ---------- Supabase config ----------
   var SUPABASE_URL = "https://ibmxclzjqqyhprmbvyqc.supabase.co";
@@ -1244,5 +1260,16 @@
   loadMonth();
   loadConfig();
   startPolling();
+
+  // PWA: registra el service worker que permite instalar la app y abrirla
+  // sin conexión. Solo tiene sentido en https (o localhost); en file://
+  // durante pruebas locales simplemente no hace nada.
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){});
+    });
+  }
 })();
 </script>
+</body>
+</html>
