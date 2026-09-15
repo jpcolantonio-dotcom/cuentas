@@ -516,7 +516,7 @@
   // Bump this string on every change you deploy — it's shown at the bottom
   // of the page so you can tell at a glance whether a device is actually
   // running the latest version or an old cached copy.
-  var APP_VERSION = "1.6.0 (2026-09-15)";
+  var APP_VERSION = "1.6.1 (2026-09-15)";
 
   // ---------- Supabase config ----------
   var SUPABASE_URL = "https://ibmxclzjqqyhprmbvyqc.supabase.co";
@@ -1299,6 +1299,16 @@
   // sin conexión. Solo tiene sentido en https (o localhost); en file://
   // durante pruebas locales simplemente no hace nada.
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")){
+    // Si entra en control un service worker nuevo (porque subiste una
+    // versión nueva), recargar una sola vez para mostrarla ya — sin esto,
+    // la pantalla que ya estaba abierta se podía quedar mostrando la
+    // versión vieja aunque el archivo nuevo ya esté arriba.
+    var reloadedForUpdate = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function(){
+      if (reloadedForUpdate) return;
+      reloadedForUpdate = true;
+      location.reload();
+    });
     window.addEventListener("load", function(){
       navigator.serviceWorker.register("sw.js").catch(function(){});
     });
