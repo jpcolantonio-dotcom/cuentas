@@ -245,6 +245,7 @@
   .status-pill.paid{ background: color-mix(in srgb, var(--good) 16%, transparent); color:var(--good-ink); }
   .status-pill.pending{ background: color-mix(in srgb, var(--warn) 18%, transparent); color:var(--warn-ink); }
   .status-pill.overdue{ background: color-mix(in srgb, var(--danger) 18%, transparent); color:var(--danger-ink); }
+  .status-pill.partial{ background: color-mix(in srgb, var(--cat-1) 18%, transparent); color:var(--cat-1); }
 
   .empty{
     text-align:center; padding:44px 20px; background:var(--surface);
@@ -390,6 +391,10 @@
       <span id="fPagadoLabel">Ya lo pagué</span>
       <label class="switch"><input type="checkbox" id="f-pagado"><span class="track"><span class="thumb"></span></span></label>
     </div>
+    <div class="field" id="fieldParcial">
+      <label for="f-parcial" id="fParcialLabel">¿Pagaste una parte? ¿Cuánto?</label>
+      <div class="amount-field"><span>$</span><input type="number" id="f-parcial" min="0" step="1" inputmode="decimal" placeholder="0"></div>
+    </div>
     <div class="sheet-actions">
       <button type="button" class="btn btn-outline" id="cancelBtn">Cancelar</button>
       <button type="submit" class="btn btn-primary">Guardar</button>
@@ -444,7 +449,8 @@
       key:"gastos", singular:"gasto", plural:"gastos",
       categories: EXPENSE_CATEGORIES,
       dueLabel:"Vence el día", doneLabel:"Ya lo pagué",
-      doneWord:"Pagado", pendingWord:"Pendiente", overdueWord:"Atrasado",
+      doneWord:"Pagado", pendingWord:"Pendiente", overdueWord:"Atrasado", partialWord:"Parcial",
+      parcialLabel:"¿Pagaste una parte? ¿Cuánto?", parcialVerb:"pagaste",
       addBtn:"+ Agregar gasto", newTitle:"Nuevo gasto", editTitle:"Editar gasto",
       deleteLabel:"Eliminar gasto", sectionLabel:"Gastos del mes",
       emptyText:"Todavía no cargaste gastos para", emptyAdd:"+ Agregar gasto"
@@ -453,7 +459,8 @@
       key:"ingresos", singular:"ingreso", plural:"ingresos",
       categories: INCOME_CATEGORIES,
       dueLabel:"Cobra el día", doneLabel:"Ya lo cobré",
-      doneWord:"Cobrado", pendingWord:"Pendiente", overdueWord:"Atrasado",
+      doneWord:"Cobrado", pendingWord:"Pendiente", overdueWord:"Atrasado", partialWord:"Parcial",
+      parcialLabel:"¿Cobraste una parte? ¿Cuánto?", parcialVerb:"cobraste",
       addBtn:"+ Agregar ingreso", newTitle:"Nuevo ingreso", editTitle:"Editar ingreso",
       deleteLabel:"Eliminar ingreso", sectionLabel:"Ingresos del mes",
       emptyText:"Todavía no cargaste ingresos para", emptyAdd:"+ Agregar ingreso"
@@ -516,7 +523,7 @@
   // Bump this string on every change you deploy — it's shown at the bottom
   // of the page so you can tell at a glance whether a device is actually
   // running the latest version or an old cached copy.
-  var APP_VERSION = "1.6.1 (2026-09-15)";
+  var APP_VERSION = "1.7.0 (2026-09-16)";
 
   // ---------- Supabase config ----------
   var SUPABASE_URL = "https://ibmxclzjqqyhprmbvyqc.supabase.co";
@@ -531,6 +538,26 @@
   }
   // select=* so this keeps working whether the row still has the legacy
   // "items" column or the current "gastos"/"ingresos"/"variables" columns.
+  // Normalizes a gasto/ingreso item so every caller can just read
+  // montoPagado, regardless of whether it came from a brand-new item, one
+  // saved before "pago parcial" existed (boolean pagado only), or one with
+  // a montoPagado that's since drifted above the total (e.g. monto was
+  // edited down after a partial payment was logged).
+  function normalizeItem(it){
+    var monto = Number(it.monto) || 0;
+    var montoPagado = (it.montoPagado != null) ? Number(it.montoPagado) || 0 : (it.pagado ? monto : 0);
+    montoPagado = Math.max(0, Math.min(montoPagado, monto));
+    return Object.assign({}, it, { montoPagado: montoPagado });
+  }
+  // "pendiente" (nada pagado), "parcial" (algo pero no todo), "pagado" (todo).
+  function itemStatus(it){
+    var monto = Number(it.monto) || 0;
+    var montoPagado = Number(it.montoPagado) || 0;
+    if (montoPagado <= 0) return "pendiente";
+    if (monto > 0 && montoPagado >= monto) return "pagado";
+    return "parcial";
+  }
+
   function fetchMonthRow(id){
     return fetch(SUPABASE_URL + "/rest/v1/" + TABLE + "?id=eq." + encodeURIComponent(id) + "&select=*", { headers: sbHeaders() })
       .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
@@ -540,7 +567,7 @@
         var gastos = Array.isArray(row.gastos) ? row.gastos : (Array.isArray(row.items) ? row.items : []);
         var ingresos = Array.isArray(row.ingresos) ? row.ingresos : [];
         var variables = Array.isArray(row.variables) ? row.variables : [];
-        return { gastos: gastos, ingresos: ingresos, variables: variables };
+        return { gastos: gastos.map(normalizeItem), ingresos: ingresos.map(normalizeItem), variables: variables };
       });
   }
   function upsertMonthRow(id, gastos, ingresos, variables){
@@ -626,6 +653,9 @@
     fPagado: document.getElementById("f-pagado"),
     fPagadoLabel: document.getElementById("fPagadoLabel"),
     fieldPagado: document.getElementById("fieldPagado"),
+    fParcial: document.getElementById("f-parcial"),
+    fParcialLabel: document.getElementById("fParcialLabel"),
+    fieldParcial: document.getElementById("fieldParcial"),
     cancelBtn: document.getElementById("cancelBtn"),
     deleteBtn: document.getElementById("deleteBtn"),
     confirmOverlay: document.getElementById("confirmOverlay"),
@@ -744,11 +774,16 @@
       el.statLine.textContent = items.length ? ("Total " + fmtMoney(sumMonto(items))) : "";
       return;
     }
-    var done = 0, pending = 0;
+    // Uses the actual paid-so-far amount (montoPagado), not just a
+    // full/nothing split, so a partial payment counts correctly on both
+    // sides instead of only showing up once it's fully paid off.
+    var done = 0, totalMonto = 0;
     items.forEach(function(it){
-      var amt = Number(it.monto)||0;
-      if (it.pagado) done += amt; else pending += amt;
+      var monto = Number(it.monto)||0;
+      totalMonto += monto;
+      done += Math.min(Number(it.montoPagado)||0, monto);
     });
+    var pending = totalMonto - done;
     el.statLine.textContent = items.length ? (mode.doneWord + " " + fmtMoney(done) + " · " + mode.pendingWord + " " + fmtMoney(pending)) : "";
   }
 
@@ -768,7 +803,7 @@
   }
 
   function isOverdue(it){
-    return isRealCurrentMonth() && !it.pagado && it.vencimiento!=null && it.vencimiento < today.day;
+    return isRealCurrentMonth() && itemStatus(it) !== "pagado" && it.vencimiento!=null && it.vencimiento < today.day;
   }
 
   function renderList(){
@@ -815,8 +850,10 @@
       row.className = "row" + (overdue?" overdue":"");
       row.dataset.id = it.id;
 
+      var status = mode.noStatus ? null : itemStatus(it);
       var sub = [cat.label];
       if (!mode.noStatus && it.vencimiento!=null) sub.push((mode.key==="gastos" ? "vence día " : "cobra día ") + it.vencimiento);
+      if (status === "parcial") sub.push("faltan " + fmtMoney((Number(it.monto)||0) - (Number(it.montoPagado)||0)));
 
       var top = document.createElement("div");
       top.className = "row-top";
@@ -844,10 +881,15 @@
       bottom.appendChild(catWrap);
 
       if (!mode.noStatus){
+        var pillClass = status === "pagado" ? "paid" : (overdue ? "overdue" : (status === "parcial" ? "partial" : "pending"));
+        var pillText = status === "pagado" ? ("✓ " + mode.doneWord)
+          : status === "parcial" ? ("◐ " + mode.partialWord)
+          : overdue ? ("⚠ " + mode.overdueWord)
+          : ("⏳ " + mode.pendingWord);
         var pill = document.createElement("span");
-        pill.className = "status-pill " + (it.pagado ? "paid" : (overdue ? "overdue" : "pending"));
-        pill.textContent = it.pagado ? ("✓ " + mode.doneWord) : (overdue ? ("⚠ " + mode.overdueWord) : ("⏳ " + mode.pendingWord));
-        pill.title = "Tocar para marcar " + (it.pagado ? mode.pendingWord.toLowerCase() : mode.doneWord.toLowerCase());
+        pill.className = "status-pill " + pillClass;
+        pill.textContent = pillText;
+        pill.title = "Tocar para marcar " + (status === "pagado" ? mode.pendingWord.toLowerCase() : mode.doneWord.toLowerCase());
         pill.addEventListener("click", function(ev){
           ev.stopPropagation();
           toggleDone(it.id);
@@ -1105,6 +1147,15 @@
   window.addEventListener("online", function(){ refreshAll(true); });
 
   // ---------- edit sheet ----------
+  // The "monto pagado" field only makes sense while "Ya lo pagué" is off —
+  // once that's on the item is fully paid and a partial amount is moot.
+  function updateParcialFieldVisibility(){
+    var mode = activeMode();
+    var show = mode && !mode.noStatus && !el.fPagado.checked;
+    el.fieldParcial.style.display = show ? "" : "none";
+  }
+  el.fPagado.addEventListener("change", updateParcialFieldVisibility);
+
   function openEdit(id){
     var mode = activeMode();
     if (!mode) return; // no items on the Configuración tab
@@ -1121,16 +1172,19 @@
     if (!mode.noStatus){
       el.fVencimientoLabel.textContent = mode.dueLabel;
       el.fPagadoLabel.textContent = mode.doneLabel;
+      el.fParcialLabel.textContent = mode.parcialLabel;
     }
 
     if (id){
       var it = activeItems().filter(function(x){return x.id===id;})[0];
       if (!it) return;
+      var status = mode.noStatus ? null : itemStatus(it);
       el.editTitle.textContent = mode.editTitle;
       el.fConcepto.value = it.concepto || "";
       el.fMonto.value = it.monto != null ? it.monto : "";
       el.fVencimiento.value = it.vencimiento != null ? it.vencimiento : "";
-      el.fPagado.checked = !!it.pagado;
+      el.fPagado.checked = status === "pagado";
+      el.fParcial.value = status === "parcial" ? it.montoPagado : "";
       selectedCat = it.categoria || defaultCat;
       el.deleteBtn.style.display = "block";
     } else {
@@ -1139,9 +1193,11 @@
       el.fMonto.value = "";
       el.fVencimiento.value = "";
       el.fPagado.checked = false;
+      el.fParcial.value = "";
       selectedCat = defaultCat;
       el.deleteBtn.style.display = "none";
     }
+    updateParcialFieldVisibility();
     renderChipsActive();
     el.editOverlay.classList.add("show");
     setTimeout(function(){ el.fConcepto.focus(); }, 50);
@@ -1161,7 +1217,9 @@
     var monto = parseFloat(el.fMonto.value);
     if (!concepto || isNaN(monto)) return;
     var venc = el.fVencimiento.value ? Math.max(1, Math.min(31, parseInt(el.fVencimiento.value,10))) : null;
-    var pagado = el.fPagado.checked;
+    var pagadoFull = el.fPagado.checked;
+    var parcialVal = el.fParcial.value !== "" ? Math.max(0, parseFloat(el.fParcial.value) || 0) : 0;
+    var montoPagado = pagadoFull ? monto : Math.min(parcialVal, monto);
     var tab = state.editingTab;
     var editingIdSnapshot = state.editingId;
     var newId = uid();
@@ -1171,10 +1229,10 @@
       if (editingIdSnapshot){
         return items.map(function(it){
           if (it.id !== editingIdSnapshot) return it;
-          return Object.assign({}, it, { concepto:concepto, categoria:selectedCat, monto:monto, vencimiento:venc, pagado:pagado });
+          return Object.assign({}, it, { concepto:concepto, categoria:selectedCat, monto:monto, vencimiento:venc, montoPagado:montoPagado });
         });
       }
-      return items.concat([{ id:newId, concepto:concepto, categoria:selectedCat, monto:monto, vencimiento:venc, pagado:pagado }]);
+      return items.concat([{ id:newId, concepto:concepto, categoria:selectedCat, monto:monto, vencimiento:venc, montoPagado:montoPagado }]);
     });
   });
 
@@ -1192,12 +1250,18 @@
   // the same pill while its toggle is still in flight, so a fast double
   // tap can't even enqueue two negations of the same field.
   var togglingIds = {};
+  // A tap on the pill is the fast path: pendiente/parcial -> pagado del
+  // todo, pagado -> pendiente de nuevo. To log a specific partial amount,
+  // open the item (tap the row) and use "¿Pagaste una parte?" there.
   function toggleDone(id){
     if (togglingIds[id]) return;
     togglingIds[id] = true;
     persistMutation(state.activeTab, function(items){
       return items.map(function(it){
-        return it.id===id ? Object.assign({}, it, {pagado: !it.pagado}) : it;
+        if (it.id !== id) return it;
+        var monto = Number(it.monto) || 0;
+        var isFullyPaid = itemStatus(it) === "pagado";
+        return Object.assign({}, it, { montoPagado: isFullyPaid ? 0 : monto });
       });
     }, function(){
       delete togglingIds[id];
@@ -1241,7 +1305,7 @@
       }
       function freshCopy(list){
         return list.map(function(it){
-          return { id:uid(), concepto:it.concepto, categoria:it.categoria, monto:it.monto, vencimiento:it.vencimiento, pagado:false };
+          return { id:uid(), concepto:it.concepto, categoria:it.categoria, monto:it.monto, vencimiento:it.vencimiento, montoPagado:0 };
         });
       }
       // generated once so the optimistic update and the merge-write below
